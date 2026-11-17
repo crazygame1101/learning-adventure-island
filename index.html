@@ -60,10 +60,10 @@ const PETS=[['tiger','🐯','老虎','果斷行動派'],['peacock','🦚','孔�
 const REWARDS=[['🧋','犒賞自己一杯喜歡的飲料'],['⏳','好好休息 10 分鐘'],['📱','滑手機 15 分鐘，時間到就收起來'],['🎬','看三部自己喜歡的短劇短片'],['💬','對自己說一句具體的鼓勵'],['🎵','聽兩首自己喜歡的歌']];
 const KEY='learning-island-v8-quest'; // 沿用 V8 儲存鍵，保留原有紀錄
 const chooseMysteryPet=()=>PETS[Math.floor(Math.random()*PETS.length)][0];
-const fresh=()=>({page:'intro',name:'',mood:'',pet:null,profileReady:false,state:'',round:0,skill:'start',task:0,goal:'',planned:5,left:300,elapsed:0,running:false,lastTick:null,logs:[],xp:0,feeds:0,food:0,confirmCount:0,actual:'',outcome:'',reflection:'',reviewHelp:'',reviewNext:'',selfRating:3,diceCount:0,drawn:-1,rewardChoice:'',completedAt:'',archive:[]});
+const fresh=()=>({page:'intro',name:'',mood:'',pet:null,profileReady:false,state:'',round:0,skill:'start',task:0,goal:'',planned:5,left:300,elapsed:0,running:false,lastTick:null,logs:[],xp:0,feeds:0,food:0,confirmCount:0,actual:'',outcome:'',reflection:'',reviewHelp:'',reviewNext:'',selfRating:3,diceCount:0,drawn:-1,rewardChoice:'',completedAt:'',archive:[],historyReturnPage:'home',resumePage:null});
 let s=fresh();try{const obj=JSON.parse(localStorage.getItem(KEY)||'null');if(obj&&Array.isArray(obj.archive))s={...fresh(),...obj,running:false,lastTick:null}}catch(e){}
 if(s.profileReady&&(!PETS.some(p=>p[0]===s.pet))){s.pet=chooseMysteryPet()}
-if(s.profileReady&&s.page==='intro')s.page='home';let clock=null;let viewedHistory=-1;const app=document.getElementById('app'),el=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+if(!s.profileReady)s.page='intro';if(s.profileReady&&s.page==='intro')s.page='home';let clock=null;let viewedHistory=-1;const app=document.getElementById('app'),el=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({...s,running:false,lastTick:null}))}catch(e){}};
 const lv=()=>Math.floor(s.xp/100)+1,hatched=(r=s)=>r.feeds>=3,petLv=(r=s)=>hatched(r)?Math.floor((r.feeds-3)/3)+1:0,title=()=>['冒險新手','啟動實踐家','專注探索家','策略高手','自律成長家','學習引路人'][Math.min(5,lv()-1)];
 const eggIcon='🥚';const avatar=(r=s)=>hatched(r)?(PETS.find(x=>x[0]===r.pet)||PETS[0])[1]:eggIcon;
@@ -95,8 +95,22 @@ function report(record=s){const end=record.completedAt?new Date(record.completed
 function history(){const history=s.archive;return `<section class="panel"><h2>📚 我的歷史冒險紀錄</h2><p class="muted">只存在這台裝置的瀏覽器中；若清除網站資料，紀錄可能消失。可以下載文字檔另存。</p>${history.length?history.slice().reverse().map((r,i)=>`<div class="historycard"><div class="metarow"><b>${esc(r.name)}｜${new Date(r.completedAt).toLocaleDateString('zh-TW')}</b>${btn('查看成果','viewHistory','outline small').replace('data-act="viewHistory"',`data-act="viewHistory" data-index="${history.length-1-i}"`)}</div><div class="tiny muted">${r.logs.length} 回合 · ${timefmt(r.logs.reduce((a,x)=>a+x.elapsed,0))} · ${r.logs.reduce((a,x)=>a+x.xp,0)} XP</div></div>`).join(''):'<div class="hint">目前還沒有完成的歷史紀錄。完成第一趟冒險後就會出現在這裡。</div>'}<div class="buttons">${btn('← 回到正在進行的冒險','backHistory','outline')}</div></section>`}
 function page(){const pages={intro,home,state,choose,tasks,challenge,log,earned,review,reward,report:()=>report(),history,historyReport:()=>report(s.archive[viewedHistory]||s)};return pages[s.page]?pages[s.page]():intro()}
 function renderDock(){const dock=el('petDock');if(!dock)return;if(!s.profileReady){dock.innerHTML='';dock.classList.add('hidden');return}dock.classList.remove('hidden');const ready=s.food>0&&s.xp>=feedGoal();dock.innerHTML=`<span class="petheadicon" aria-hidden="true">${avatar()}</span><span class="petheadinfo"><b>${hatched()?pet()[2]+' Lv.'+petLv():'神祕蛋'}</b><small>🍪 ${s.food} 份 · 已餵 ${s.feeds} 次</small></span>${ready?btn('🍪 餵食','feed','small soft'):''}`}
-function render(){header();app.innerHTML=progress()+page();renderDock();save()}
-function switchPage(p){if(s.running)pauseClock();s.page=p;render();window.scrollTo({top:0,behavior:'instant'})}
+function render(){if(!s.profileReady&&s.page!=='intro')s.page='intro';header();app.innerHTML=progress()+page();renderDock();save()}
+const QUEST_PAGES=['state','choose','tasks','challenge','log','earned','review','reward'];
+function captureDraft(){
+  // 離開表單時先暫存，從歷史紀錄返回才能接續輸入。
+  if(s.page==='tasks'){const g=el('goal'),m=el('minutes');if(g)s.goal=g.value;if(m&&Number.isInteger(Number(m.value))&&Number(m.value)>=1&&Number(m.value)<=60)s.planned=Number(m.value)}
+  if(s.page==='log'){const a=el('actual'),o=document.querySelector('input[name="outcome"]:checked');if(a)s.actual=a.value;if(o)s.outcome=o.value}
+  if(s.page==='review'){const a=el('helpful'),b=el('next'),c=document.querySelector('input[name="selfRating"]:checked');if(a)s.reviewHelp=a.value;if(b)s.reviewNext=b.value;if(c)s.selfRating=Number(c.value)}
+  if(s.page==='reward'){const r=el('rewardChoice');if(r)s.rewardChoice=r.value}
+}
+function switchPage(p){
+  if(s.running)pauseClock();
+  captureDraft();
+  if(!s.profileReady&&!['intro'].includes(p))p='intro';
+  if(QUEST_PAGES.includes(p))s.resumePage=p;
+  s.page=p;render();window.scrollTo({top:0,behavior:'instant'})
+}
 function showDialog(title,text,actions){el('dialogTitle').textContent=title;el('dialogText').textContent=text;const target=el('dialogButtons');target.replaceChildren();actions.forEach(([label,fn,secondary])=>{const b=document.createElement('button');b.className='btn '+(secondary?'soft':'');b.textContent=label;b.onclick=()=>{el('dialog').classList.add('hidden');fn()};target.appendChild(b)});el('dialog').classList.remove('hidden');target.querySelector('button')?.focus()}
 function timerStep(){if(!s.running)return;const now=Date.now();const diff=Math.max(0,Math.floor((now-s.lastTick)/1000));if(diff){s.elapsed+=Math.min(diff,s.left);s.left=Math.max(0,s.left-diff);s.lastTick+=diff*1000;if(s.left===0){pauseClock();showDialog('⏰ 時間到了！','你可以記錄目前做到的部分，也可以繼續調整目標、重新計時。',[['回到任務',()=>render()]])}else{if(el('clock'))el('clock').textContent=timefmt(s.left);save()}}}
 function pauseClock(){timerStepCore();s.running=false;if(clock){clearInterval(clock);clock=null}}
@@ -108,16 +122,16 @@ function txt(r){const x=[`學習冒險島｜${r.name} 的學習成果`,`日期�
 function exportText(r){const blob=new Blob(['\ufeff'+txt(r)],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='學習冒險島_學習成果.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
 function act(a,button){switch(a){
 case'register':{const v=el('nick').value.trim();if(!v){alert('請先填寫暱稱。');return}s.name=v;s.pet=chooseMysteryPet();s.profileReady=true;switchPage('home');break}
-case'home':switchPage('home');break;
+case'home':switchPage(s.profileReady?'home':'intro');break;
 case'resetAll':showDialog('⚠️ 確定要重新開始嗎？','這會永久清除這台瀏覽器內的冒險者資料、XP、寵物孵化進度、全部學習歷史與目前挑戰。清除後無法在本站恢復。', [['取消，保留紀錄',()=>render(),true],['我了解，繼續確認',()=>showDialog('🚨 最後確認：刪除全部紀錄','真的要刪掉所有進度嗎？包含過去的學習成果也會消失。', [['不刪除',()=>render(),true],['確定全部刪除',()=>{pauseClock();try{localStorage.removeItem(KEY)}catch(e){}s=fresh();viewedHistory=-1;switchPage('intro')} ]])]]);break;
-case'startJourney':s.state='';s.round=0;s.logs=[];s.goal='';s.elapsed=0;s.diceCount=0;s.drawn=-1;s.rewardChoice='';s.reviewHelp='';s.reviewNext='';s.selfRating=3;s.completedAt='';s.confirmCount=0;switchPage('state');break;
+case'startJourney':if(!s.profileReady){switchPage('intro');break}s.state='';s.round=0;s.logs=[];s.goal='';s.elapsed=0;s.diceCount=0;s.drawn=-1;s.rewardChoice='';s.reviewHelp='';s.reviewNext='';s.selfRating=3;s.completedAt='';s.confirmCount=0;switchPage('state');break;
 case'stateNext':if(!s.state){alert('請先選擇一種目前的學習狀況');return}s.skill=s.state;switchPage('choose');break;
 case'choose':switchPage('choose');break;
 case'chooseNext':s.task=0;s.goal='';switchPage('tasks');break;
 case'startTask':{const g=el('goal').value.trim(),m=Number(el('minutes').value);if(!g||!Number.isInteger(m)||m<1||m>60){alert('請輸入具體目標，並設定 1～60 分鐘。');return}s.goal=g;s.planned=m;s.left=m*60;s.elapsed=0;s.micro=[false,false,false];s.confirmCount=0;switchPage('challenge');break}
 case'toggleClock':startClock();break;
 case'resetClock':pauseClock();s.left=s.planned*60;s.elapsed=0;render();break;
-case'tryFinish':{pauseClock();s.confirmCount++;const n=s.round;if(s.confirmCount===1){const msg=n===0?'加油！如果還沒完成，再堅持一下！如果已經完成給你掌聲。先回到任務再次確認，確認完再按一次「完成嘗試」唷！':'嘿！又是我，你已經完成了嗎？可以再努力一下，相信你正在進步的路上。\n先回到任務再次確認，再按一次「完成嘗試」就能記錄成果。';showDialog('再確認一下任務！',msg,[['好的，回去確認',()=>render()]])}else{const msg=n===2?'請給認真學習的自己掌聲，可以記錄成果；如果還想繼續挑戰，請返回挑戰。':'請給認真嘗試的自己掌聲，可以記錄成果；如果還想繼續挑戰，請返回挑戰。';showDialog('確定要記錄這次挑戰嗎？',msg,[['返回挑戰',()=>render(),true],['是，記錄成果',()=>switchPage('log')]])}break}
+case'tryFinish':{pauseClock();s.confirmCount++;const n=s.round;if(n===0&&s.confirmCount===1){const msg=n===0?'加油！如果還沒完成，再堅持一下！如果已經完成給你掌聲。先回到任務再次確認，確認完再按一次「完成嘗試」唷！':'嘿！又是我，你已經完成了嗎？可以再努力一下，相信你正在進步的路上。\n先回到任務再次確認，再按一次「完成嘗試」就能記錄成果。';showDialog('再確認一下任務！',msg,[['好的，回去確認',()=>render()]])}else{const msg=n===2?'請給認真學習的自己掌聲，可以記錄成果；如果還想繼續挑戰，請返回挑戰。':'請給認真嘗試的自己掌聲，可以記錄成果；如果還想繼續挑戰，請返回挑戰。';showDialog('確定要記錄這次挑戰嗎？',msg,[['返回挑戰',()=>render(),true],['是，記錄成果',()=>switchPage('log')]])}break}
 case'challenge':switchPage('challenge');break;
 case'claim':{const v=el('actual').value.trim(),o=document.querySelector('input[name="outcome"]:checked');if(!o||!v){alert('請先勾選實際情況，並用一句話說明發生什麼事。');return}s.outcome=o.value;s.actual=v;s.logs.push({skillId:s.skill,skill:ability().name,title:mission()[0],goal:s.goal,planned:s.planned,elapsed:s.elapsed,outcome:s.outcome,actual:s.actual,xp:35,steps:s.micro||[]});s.round++;s.xp+=35;s.food++;switchPage('earned');break}
 case'feed':if(s.food<1||s.xp<feedGoal())return;{const was=hatched();s.food--;s.feeds++;if(!was&&hatched())showDialog('🥚 冒險蛋孵化了！',`你的${pet()[2]}夥伴終於誕生！接下來牠會和你一起升級成長。`,[['太棒了！',()=>render()]]);else render()}break;
@@ -127,9 +141,9 @@ case'dice':s.drawn=Math.floor(Math.random()*6);s.diceCount++;s.rewardChoice=REWA
 case'finish':{const v=el('rewardChoice').value.trim();if(!v){alert('請寫下最後決定給自己的獎勵。');return}s.rewardChoice=v;s.completedAt=new Date().toISOString();finalizeArchive();switchPage('report');break}
 case'export':exportText(s.page==='historyReport'?(s.archive[viewedHistory]||s):s);break;
 case'print':window.print();break;
-case'new':switchPage('home');break;
-case'history':s.previousPage=s.page;switchPage('history');break;
-case'backHistory':switchPage(s.previousPage||'home');break;
+case'new':s.resumePage=null;switchPage('home');break;
+case'history':if(s.page!=='history'&&s.page!=='historyReport'){captureDraft();s.historyReturnPage=s.page}switchPage('history');break;
+case'backHistory':switchPage(s.historyReturnPage||s.resumePage||'home');break;
 case'viewHistory':{const idx=Number(button.dataset.index);if(!s.archive[idx])return;viewedHistory=idx;switchPage('historyReport');break}
 }}
 document.addEventListener('click',e=>{const t=e.target.closest('[data-act],[data-mood],[data-pet],[data-state],[data-skill],[data-task]');if(!t)return;if(t.dataset.mood){s.name=el('nick')?.value||s.name;s.mood=t.dataset.mood;render();return}if(t.dataset.pet){s.name=el('nick')?.value||s.name;s.pet=t.dataset.pet;render();return}if(t.dataset.state){s.state=t.dataset.state;render();return}if(t.dataset.skill){s.skill=t.dataset.skill;render();return}if(t.dataset.task!==undefined){s.task=Number(t.dataset.task);s.goal='';render();return}if(t.dataset.act)act(t.dataset.act,t)});
